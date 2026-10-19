@@ -41,7 +41,14 @@ extension LayerTree {
         }
 
         init(stops: [Stop]) {
-            self.stops = stops
+            if stops.count == 1, let stop = stops.first {
+                self.stops = [
+                    Stop(offset: 0, color: stop.color, opacity: stop.opacity),
+                    Stop(offset: 1, color: stop.color, opacity: stop.opacity)
+                ]
+            } else {
+                self.stops = stops
+            }
         }
 
         struct Stop: Hashable {
