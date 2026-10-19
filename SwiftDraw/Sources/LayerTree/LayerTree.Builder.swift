@@ -395,7 +395,7 @@ extension LayerTree.Builder {
         } else {
             stops = makeGradientStops(for: element)
         }
-        guard stops.count > 1 else {
+        guard !stops.isEmpty else {
             return nil
         }
 
@@ -418,7 +418,7 @@ extension LayerTree.Builder {
         } else {
             stops = makeGradientStops(for: element)
         }
-        guard stops.count > 1 else {
+        guard !stops.isEmpty else {
             return nil
         }
 
