@@ -57,6 +57,19 @@ struct CGTypes: RendererTypes, Sendable {
     typealias Image = CGImage
 }
 
+private final class FillPatternState {
+    private var stack: [CGTransformingPattern?] = []
+    var current: CGTransformingPattern?
+
+    func push() {
+        stack.append(current)
+    }
+
+    func pop() {
+        current = stack.popLast() ?? nil
+    }
+}
+
 struct CGTransformingPattern: Hashable {
 
     var bounds: CGRect
@@ -326,6 +339,7 @@ struct CGRenderer: Renderer {
 
     let ctx: CGContext
     let baseCTM: CGAffineTransform
+    private let fillPattern = FillPatternState()
 
     init(context: CGContext) {
         self.ctx = context
@@ -334,10 +348,12 @@ struct CGRenderer: Renderer {
 
     func pushState() {
         ctx.saveGState()
+        fillPattern.push()
     }
 
     func popState() {
         ctx.restoreGState()
+        fillPattern.pop()
     }
 
     func pushTransparencyLayer() {
@@ -366,9 +382,14 @@ struct CGRenderer: Renderer {
 
     func setFill(color: CGColor) {
         ctx.setFillColor(color)
+        fillPattern.current = nil
     }
 
     func setFill(pattern: CGTransformingPattern) {
+        fillPattern.current = pattern
+    }
+
+    private func setFillCGPattern(_ pattern: CGTransformingPattern) {
         let patternSpace = CGColorSpace(patternBaseSpace: nil)!
         ctx.setFillColorSpace(patternSpace)
         var alpha : CGFloat = 1.0
@@ -427,8 +448,45 @@ struct CGRenderer: Renderer {
     }
 
     func fill(path: CGPath, rule: CGPathFillRule) {
+        if let pattern = fillPattern.current {
+            fill(path: path, rule: rule, tiling: pattern)
+            return
+        }
         ctx.addPath(path)
         ctx.fillPath(using: rule)
+    }
+
+    // Draws pattern cells directly instead of through CGPattern, whose cell cache is
+    // rendered at a context-dependent resolution (e.g. ~1x inside a SwiftUI Canvas).
+    private func fill(path: CGPath, rule: CGPathFillRule, tiling pattern: CGTransformingPattern) {
+        let cell = pattern.bounds
+        let area = path.boundingBoxOfPath
+        guard cell.width > 0, cell.height > 0, !area.isNull, !area.isEmpty else { return }
+
+        let columns = Int((floor((area.minX - cell.minX) / cell.width)))..<Int(ceil((area.maxX - cell.minX) / cell.width))
+        let rows = Int((floor((area.minY - cell.minY) / cell.height)))..<Int(ceil((area.maxY - cell.minY) / cell.height))
+        guard columns.count * rows.count <= 4096 else {
+            ctx.saveGState()
+            setFillCGPattern(pattern)
+            ctx.addPath(path)
+            ctx.fillPath(using: rule)
+            ctx.restoreGState()
+            return
+        }
+
+        ctx.saveGState()
+        ctx.addPath(path)
+        ctx.clip(using: rule)
+        for row in rows {
+            for column in columns {
+                ctx.saveGState()
+                ctx.translateBy(x: CGFloat(column) * cell.width, y: CGFloat(row) * cell.height)
+                ctx.clip(to: cell)
+                pattern.draw(ctx)
+                ctx.restoreGState()
+            }
+        }
+        ctx.restoreGState()
     }
 
     func draw(image: CGImage, in rect: CGRect) {
