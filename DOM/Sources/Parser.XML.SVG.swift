@@ -61,6 +61,7 @@ package extension XMLParser {
         svg.y = try att.parseCoordinate("y")
         svg.childElements = try parseGraphicsElements(e.children)
         svg.viewBox = viewBox
+        svg.preserveAspectRatio = try? att.parseString("preserveAspectRatio")
 
         svg.defs = try parseSVGDefs(e)
         svg.styles = parseStyleSheetElements(within: e)

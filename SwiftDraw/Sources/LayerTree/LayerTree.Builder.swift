@@ -55,7 +55,8 @@ extension LayerTree {
                 y: svg.y,
                 viewBox: svg.viewBox,
                 width: svg.width,
-                height: svg.height
+                height: svg.height,
+                preserveAspectRatio: svg.preserveAspectRatio
             )
             return l
         }
@@ -65,13 +66,24 @@ extension LayerTree {
             y: DOM.Coordinate?,
             viewBox: DOM.SVG.ViewBox?,
             width: DOM.Length,
-            height: DOM.Length
+            height: DOM.Length,
+            preserveAspectRatio: String? = nil
         ) -> [LayerTree.Transform] {
-            let position = LayerTree.Transform.translate(tx: x ?? 0, ty: y ?? 0)
             let viewBox = viewBox ?? DOM.SVG.ViewBox(x: 0, y: 0, width: .init(width), height: .init(height))
 
-            let sx = LayerTree.Float(width) / viewBox.width
-            let sy = LayerTree.Float(height) / viewBox.height
+            var sx = LayerTree.Float(width) / viewBox.width
+            var sy = LayerTree.Float(height) / viewBox.height
+            var tx = x ?? 0
+            var ty = y ?? 0
+            let stretches = preserveAspectRatio?.trimmingCharacters(in: .whitespaces).hasPrefix("none") ?? false
+            if !stretches, sx != sy {
+                let uniform = min(sx, sy)
+                tx += (LayerTree.Float(width) - viewBox.width * uniform) / 2
+                ty += (LayerTree.Float(height) - viewBox.height * uniform) / 2
+                sx = uniform
+                sy = uniform
+            }
+            let position = LayerTree.Transform.translate(tx: tx, ty: ty)
             let scale = LayerTree.Transform.scale(sx: sx, sy: sy)
             let translate = LayerTree.Transform.translate(tx: -viewBox.x, ty: -viewBox.y)
 
@@ -120,7 +132,8 @@ extension LayerTree {
                             y: svg.y,
                             viewBox: svg.viewBox,
                             width: svg.width,
-                            height: svg.height
+                            height: svg.height,
+                            preserveAspectRatio: svg.preserveAspectRatio
                         )
                     }
                 } else {
