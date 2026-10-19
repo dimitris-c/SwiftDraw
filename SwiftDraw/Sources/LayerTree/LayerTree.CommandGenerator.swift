@@ -208,6 +208,7 @@ extension LayerTree {
                 }
             case .pattern(let fillPattern):
                 var resolvedPattern = fillPattern
+                var patternCommands = [RendererCommand<P.Types>]()
                 if fillPattern.contentUnits == .objectBoundingBox {
                     let bounds = provider.getBounds(from: shape)
                     let scaledFrame = LayerTree.Rect(
@@ -218,10 +219,15 @@ extension LayerTree {
                     )
                     resolvedPattern = LayerTree.Pattern(frame: scaledFrame)
                     resolvedPattern.contents = fillPattern.contents
+                    patternCommands.append(.pushState)
+                    patternCommands.append(.translate(tx: provider.createFloat(from: bounds.x), ty: provider.createFloat(from: bounds.y)))
+                    patternCommands.append(.scale(sx: provider.createFloat(from: bounds.width), sy: provider.createFloat(from: bounds.height)))
                 }
-                var patternCommands = [RendererCommand<P.Types>]()
                 for contents in resolvedPattern.contents {
                     patternCommands.append(contentsOf: renderCommands(for: contents, colorConverter: colorConverter))
+                }
+                if fillPattern.contentUnits == .objectBoundingBox {
+                    patternCommands.append(.popState)
                 }
 
                 let pattern = provider.createPattern(from: resolvedPattern, contents: patternCommands)
